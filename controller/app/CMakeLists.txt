@@ -1,3 +1,4 @@
-cmake_minimum_required (VERSION 2.8) 
+cmake_minimum_required (VERSION 2.8)
+add_subdirectory("streamformats")
 add_subdirectory("cmdline")
 add_subdirectory("test")
