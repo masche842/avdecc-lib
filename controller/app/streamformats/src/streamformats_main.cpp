@@ -15,17 +15,6 @@
 #include <stdexcept>
 #include "streamformats.h"
 
-// #if defined(__MACH__) || defined(__linux__)
-// #include <unistd.h>
-// #include <stdio.h>
-// #include <string.h>
-
-// // For TAB-completion
-// #include "cli_argument.h"
-// #include <set>
-// #else
-// #include "msvc\getopt.h"
-// #endif
 
 using namespace std;
 
@@ -90,39 +79,6 @@ extern "C" void log_callback(void * user_obj, int32_t log_level, const char * lo
     fflush(stdout);
 }
 
-// static function to print the network interfaces
-static void print_interfaces()
-{
-    avdecc_lib::net_interface * netif = avdecc_lib::create_net_interface();
-    for (uint32_t i = 1; i < netif->devs_count() + 1; i++)
-    {
-        size_t dev_index = i - 1;
-        char * dev_desc = netif->get_dev_desc_by_index(dev_index);
-        printf("%d (%s)", i, dev_desc);
-
-        uint64_t dev_mac = netif->get_dev_mac_addr_by_index(dev_index);
-        if (dev_mac)
-        {
-            avdecc_lib::utility::MacAddr mac(dev_mac);
-            char mac_str[20];
-            mac.tostring(mac_str);
-            printf(" (%s)", mac_str);
-        }
-
-        size_t ip_addr_count = netif->device_ip_address_count(dev_index);
-        if (ip_addr_count > 0)
-        {
-            for(size_t ip_index = 0; ip_index < ip_addr_count; ip_index++)
-            {
-                const char * dev_ip = netif->get_dev_ip_address_by_index(dev_index, ip_index);
-                if (dev_ip)
-                    printf(" <%s>", dev_ip);
-            }
-        }
-        printf("\n");
-    }
-}
-
 int main(int argc, char * argv[])
 {
     char * interface = NULL;
@@ -157,8 +113,6 @@ int main(int argc, char * argv[])
         {
             input_argv.push_back(cmd_input);
         }
-
-        // done = streamformats_app_ref.handle(input_argv);
 
         if (input_argv.empty())
         {

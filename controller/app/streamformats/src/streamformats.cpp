@@ -389,7 +389,6 @@ uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_ra
 
     if (current_format.subtype() == format.subtype()) {
         // subtype matches, now check channel count and sampling rate
-        uint16_t channel_count;
         switch (current_format.subtype())
         {
         case avdecc_lib::utility::ieee1722_stream_format::IIDC_61883:
@@ -419,7 +418,6 @@ uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_ra
                     return format.value();
                 }
             }
-            channel_count = current_format.channel_count();
         }
         break;
         case avdecc_lib::utility::ieee1722_stream_format::AAF:
@@ -446,7 +444,6 @@ uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_ra
                     return format.value() & ~((uint64_t)1 << AAF_UPTO_SHIFT);
                 }
             }
-            channel_count = current_format.channel_count();
         }
         break;
         case avdecc_lib::utility::ieee1722_stream_format::CRF:
@@ -458,9 +455,6 @@ uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_ra
             }
         }
         }
-
-        atomic_cout << "channel count: " << channel_count << std::endl;
-        atomic_cout << "Matching subtype for " << std::hex << current_format_value << " " << format.name() << std::endl;
     }
     return false;
 }

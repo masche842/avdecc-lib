@@ -101,3 +101,5 @@ public:
     ///
     bool is_setting_valid(uint32_t end_station, uint16_t entity, uint16_t config);
 };
+
+uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_rate, uint64_t format_value);
