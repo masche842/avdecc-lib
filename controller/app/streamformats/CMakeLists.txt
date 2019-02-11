@@ -2,6 +2,8 @@ cmake_minimum_required (VERSION 2.8)
 project (avdecc-lib_controller)
 enable_testing()
 
+add_subdirectory("test/get_compatible_streamformat")
+
 option(USE_GNU_READLINE "Use GNU Readline" OFF)
 
 include_directories( src ../../lib/include ../../jdksavdecc-c/include )
