@@ -134,6 +134,10 @@ int main(int argc, char * argv[])
             {
                 streamformats_app_ref.cmd_formats();
             }
+            else if (input_argv[0] == "current")
+            {
+                streamformats_app_ref.cmd_current();
+            }
             else if (input_argv[0] == "check")
             {
                 if (input_argv.size() < 2) {

@@ -80,6 +80,11 @@ public:
     int cmd_formats();
 
     ///
+    /// List current stream format.
+    ///
+    int cmd_current();
+
+    ///
     /// Test compatibility of current stream format with sampling rate
     ///
     int cmd_check(std::string arg);

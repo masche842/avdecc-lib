@@ -310,6 +310,22 @@ int streamformats_app::cmd_formats()
     return 0;
 }
 
+int streamformats_app::cmd_current()
+{
+    avdecc_lib::end_station * end_station;
+    avdecc_lib::entity_descriptor * entity;
+    avdecc_lib::configuration_descriptor * configuration;
+
+    if (get_current_end_station_entity_and_descriptor(&end_station, &entity, &configuration))
+        return 0;
+    avdecc_lib::stream_input_descriptor * stream_input_desc_ref = configuration->get_stream_input_desc_by_index(0);
+    avdecc_lib::stream_input_descriptor_response * stream_input_resp_ref = stream_input_desc_ref->get_stream_input_response();
+
+    atomic_cout << "current stream format: " << "0x" << std::hex << stream_input_resp_ref->current_format_value()  << std::endl;
+
+    return 0;
+}
+
 int streamformats_app::cmd_check(std::string arg)
 {
     uint32_t sample_rate = strtoul(arg.c_str(), NULL, 10);
@@ -343,6 +359,9 @@ int streamformats_app::do_check(uint32_t sample_rate)
     {
         uint64_t iterator_fmt_value = stream_input_resp_ref->get_supported_stream_fmt_by_index(i);
 
+atomic_cout << "check stream format: " << "0x" << std::hex << current_format_value <<
+" " << sample_rate << " " << "0x" << std::hex << iterator_fmt_value << std::endl;
+
         uint64_t new_format = get_compatible_format(current_format_value, sample_rate, iterator_fmt_value);
 
         if (new_format > 0) {
@@ -374,74 +393,163 @@ bool streamformats_app::is_setting_valid(uint32_t end_station, uint16_t entity, 
 }
 
 
-// avdecc_lib only defines getter for the ut bit, so we need the mask to unset it
+// 1722 Stream formats
+#define IEEE1722_FORMAT_VERSION_SHIFT         (63)
+#define IEEE1722_FORMAT_VERSION_MASK          (0x00000001)
+#define IEEE1722_FORMAT_SUBTYPE_SHIFT         (56)
+#define IEEE1722_FORMAT_SUBTYPE_MASK          (0x0000007f)
+
+// IEC 61883
+#define IEC61883_SF_SHIFT                     (55)
+#define IEC61883_SF_MASK                      (0x00000001)
+#define IEC61883_TYPE_SHIFT                   (49)
+#define IEC61883_TYPE_MASK                    (0x0000003f)
+#define IEC61883_6_SFC_SHIFT                  (40)
+#define IEC61883_6_SFC_MASK                   (0x00000007)
+#define IEC61883_6_BLOCK_COUNT_SHIFT          (32)
+#define IEC61883_6_BLOCK_COUNT_MASK           (0x000000ff)
+#define IEC61883_6_BLOCKING_SHIFT             (31)
+#define IEC61883_6_BLOCKING_MASK              (0x00000001)
+#define IEC61883_6_NONBLOCKING_SHIFT          (30)
+#define IEC61883_6_NONBLOCKING_MASK           (0x00000001)
 #define IEC61883_6_UPTO_SHIFT                 (29)
+#define IEC61883_6_UPTO_MASK                  (0x00000001)
+#define IEC61883_6_SYNCHRONOUS_SHIFT          (28)
+#define IEC61883_6_SYNCHRONOUS_MASK           (0x00000001)
+#define IEC61883_6_PACKETIZATION_SHIFT        (43)
+#define IEC61883_6_PACKETIZATION_MASK         (0x0000001f)
+#define IEC61883_6_AM824_IEC60958_COUNT_SHIFT (16)
+#define IEC61883_6_AM824_IEC60958_COUNT_MASK  (0x000000ff)
+#define IEC61883_6_AM824_MBLA_COUNT_SHIFT     (8)
+#define IEC61883_6_AM824_MBLA_COUNT_MASK      (0x000000ff)
+#define IEC61883_6_AM824_MIDI_COUNT_SHIFT     (4)
+#define IEC61883_6_AM824_MIDI_COUNT_MASK      (0x0000000f)
+#define IEC61883_6_AM824_SMPTE_COUNT_SHIFT    (0)
+#define IEC61883_6_AM824_SMPTE_COUNT_MASK     (0x0000000f)
+
+#define IEC61883_6_AM824_IEC60958_COMPARE_MASK (((uint64_t)IEC61883_6_BLOCK_COUNT_MASK << IEC61883_6_BLOCK_COUNT_SHIFT) \
+    | ((uint64_t)IEC61883_6_AM824_MBLA_COUNT_MASK << IEC61883_6_AM824_MBLA_COUNT_SHIFT) \
+    | ((uint64_t)IEC61883_6_SFC_MASK << IEC61883_6_SFC_SHIFT) \
+    | ((uint64_t)IEC61883_6_UPTO_MASK << IEC61883_6_UPTO_SHIFT))
+
+// AAF
 #define AAF_UPTO_SHIFT                        (52)
+#define AAF_UPTO_MASK                         (0x00000001)
+#define AAF_NSR_SHIFT                         (48)
+#define AAF_NSR_MASK                          (0x0000000f)
+#define AAF_TYPE_SHIFT                        (40)
+#define AAF_TYPE_MASK                         (0x000000ff)
+#define AAF_PCM_BIT_DEPTH_SHIFT               (32)
+#define AAF_PCM_BIT_DEPTH_MASK                (0x000000ff)
+#define AAF_PCM_CHANNELS_PER_FRAME_SHIFT      (22)
+#define AAF_PCM_CHANNELS_PER_FRAME_MASK       (0x000003ff)
+#define AAF_PCM_SAMPLES_PER_FRAME_SHIFT       (12)
+#define AAF_PCM_SAMPLES_PER_FRAME_MASK        (0x000003ff)
+
+#define AAF_COMPARE_MASK (((uint64_t)AAF_UPTO_MASK << AAF_UPTO_SHIFT) \
+    | ((uint64_t)AAF_PCM_CHANNELS_PER_FRAME_MASK << AAF_PCM_CHANNELS_PER_FRAME_SHIFT) \
+    | ((uint64_t)AAF_PCM_SAMPLES_PER_FRAME_MASK << AAF_PCM_SAMPLES_PER_FRAME_SHIFT) \
+    | ((uint64_t)AAF_NSR_MASK << AAF_NSR_SHIFT))
 
 // checks if two formats and a sample rate are compatible.
 // current_format_value: Raw u64 format currently active in the entity
 // sample_rate: the sample rate that must be supported by the new format
 // format_value: a raw u64 from the stream_formats list of supported formats
-uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_rate, uint64_t format_value)
+uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_rate, uint64_t list_format_value)
 {
     avdecc_lib::utility::ieee1722_stream_format current_format(current_format_value);
-    avdecc_lib::utility::ieee1722_stream_format format(format_value);
+    avdecc_lib::utility::ieee1722_stream_format list_format(list_format_value);
 
-    if (current_format.subtype() == format.subtype()) {
+    if (current_format.subtype() == list_format.subtype()) {
         // subtype matches, now check channel count and sampling rate
         switch (current_format.subtype())
         {
         case avdecc_lib::utility::ieee1722_stream_format::IIDC_61883:
         {
+            uint64_t current_cmp_val = current_format_value & ~IEC61883_6_AM824_IEC60958_COMPARE_MASK;
+            uint64_t list_cmp_val = list_format_value & ~IEC61883_6_AM824_IEC60958_COMPARE_MASK;
+
+            // check if formats are compatible (without sampling rate, channel count and upto flag)
+            if (current_cmp_val != list_cmp_val) {
+                return 0;
+            }
+
             // as subtypes are the same, we can just instantiate objects for both,
             // the currently set format and the current format in our for loop
             avdecc_lib::utility::iec_61883_iidc_format current_format(current_format_value);
-            avdecc_lib::utility::iec_61883_iidc_format format(format_value);
+            avdecc_lib::utility::iec_61883_iidc_format list_format(list_format_value);
 
             // continue if sampling rate does not match
-            if (sample_rate != format.sample_rate()) {
+            if (sample_rate != list_format.sample_rate()) {
                 return 0;
             }
+
             // now compare sampling rate
-            if (format.upto()) {
+            if (list_format.upto()) {
                 // with upto flag set comparison must be >=
-                if (format.channel_count() >= current_format.channel_count()) {
-                    // 1722 demands, that ut flag is set to 0 when used
-                    // in set_stream_format
-                    return format.value() & ~((uint64_t)1 << IEC61883_6_UPTO_SHIFT);
+                if (list_format.channel_count() >= current_format.channel_count()) {
+                    // as avdecc-lib doesn't provide setters, we have to build the format from scratch
+                    uint64_t val = uint64_t( (uint64_t) current_format.subtype() << IEEE1722_FORMAT_SUBTYPE_SHIFT) |
+                        ((uint64_t) current_format.sf() << IEC61883_SF_SHIFT) |
+                        ((uint64_t) current_format.iec61883_type() << IEC61883_TYPE_SHIFT) |
+                        ((uint64_t) current_format.packetization_type_value() << IEC61883_6_PACKETIZATION_SHIFT) |
+                        // everything taken from current_format except sample_rate
+                        ((uint64_t) list_format.fdf_sfc_value() << IEC61883_6_SFC_SHIFT) |
+                        ((uint64_t) current_format.dbs() << IEC61883_6_BLOCK_COUNT_SHIFT) |
+                        ((uint64_t) current_format.nonblocking() << IEC61883_6_NONBLOCKING_SHIFT) |
+                        ((uint64_t) current_format.dbs() << IEC61883_6_AM824_MBLA_COUNT_SHIFT);
+
+                    return val;
                 }
             }
             else
             {
                 // else it must be an exact match
-                if (format.channel_count() == current_format.channel_count()) {
-                    return format.value();
+                if (list_format.channel_count() == current_format.channel_count()) {
+                    return list_format.value();
                 }
             }
         }
         break;
         case avdecc_lib::utility::ieee1722_stream_format::AAF:
         {
+            uint64_t current_cmp_val = current_format_value & ~AAF_COMPARE_MASK;
+            uint64_t list_cmp_val = list_format_value & ~AAF_COMPARE_MASK;
+
+            // check if formats are compatible (without sampling rate, channel count and upto flag)
+            if (current_cmp_val != list_cmp_val) {
+                return 0;
+            }
+
             // same method calls as iec61883, but different type.
             // someone with better c++ skills can surely remove this duplication
             avdecc_lib::utility::aaf_format current_format(current_format_value);
-            avdecc_lib::utility::aaf_format format(format_value);
+            avdecc_lib::utility::aaf_format list_format(list_format_value);
             // continue if sampling rate does not match
-            if (sample_rate != format.sample_rate()) {
+            if (sample_rate != list_format.sample_rate()) {
                 return 0;
             }
             // now compare sampling rate
-            if (format.upto()) {
+            if (list_format.upto()) {
                 // with upto flag set comparison must be >=
-                if (format.channel_count() >= current_format.channel_count()) {
-                    return format.value();
+                if (list_format.channel_count() >= current_format.channel_count()) {
+                    // as avdecc-lib doesn't provide setters, we have to build the format from scratch
+                    uint64_t val = uint64_t( (uint64_t) current_format.subtype() << IEEE1722_FORMAT_SUBTYPE_SHIFT) |
+                        // everything taken from current_format except sample_rate and samples per frame
+                        ((uint64_t) list_format.nsr_value() << AAF_NSR_SHIFT) |
+                        ((uint64_t) list_format.samples_per_frame() << AAF_PCM_SAMPLES_PER_FRAME_SHIFT) |
+                        ((uint64_t) current_format.packetization_type() << AAF_TYPE_SHIFT) |
+                        ((uint64_t) current_format.bit_depth() << AAF_PCM_BIT_DEPTH_SHIFT) |
+                        ((uint64_t) current_format.channels_per_frame() << AAF_PCM_CHANNELS_PER_FRAME_SHIFT);
+
+                    return val;
                 }
             }
             else
             {
                 // else it must be an exact match
-                if (format.channel_count() == current_format.channel_count()) {
-                    return format.value() & ~((uint64_t)1 << AAF_UPTO_SHIFT);
+                if (list_format.channel_count() == current_format.channel_count()) {
+                    return list_format.value();
                 }
             }
         }
@@ -449,9 +557,9 @@ uint64_t get_compatible_format(uint64_t current_format_value, uint32_t sample_ra
         case avdecc_lib::utility::ieee1722_stream_format::CRF:
         {
             avdecc_lib::utility::crf_format current_format(current_format_value);
-            avdecc_lib::utility::crf_format format(format_value);
-            if (current_format.base_frequency() == format.base_frequency()) {
-                return format.value();
+            avdecc_lib::utility::crf_format list_format(list_format_value);
+            if (current_format.base_frequency() == list_format.base_frequency()) {
+                return list_format.value();
             }
         }
         }
